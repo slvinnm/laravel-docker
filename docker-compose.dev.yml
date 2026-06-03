@@ -1,19 +1,17 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
+      dockerfile: docker/php/Dockerfile.dev
     container_name: laravel-dev-app
     restart: unless-stopped
-    # Maps your local OS user to the container to prevent permission issues
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
-      - .:/var/www  # Instant code syncing
-      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - .:/var/www 
+      - ./docker/php/local.dev.ini:/usr/local/etc/php/conf.d/local.ini
     depends_on:
       - db
+      - redis
     networks:
       - dev-network
 
@@ -24,7 +22,7 @@ services:
       - "8080:80"
     volumes:
       - .:/var/www
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/default.dev.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
     networks:
@@ -45,8 +43,19 @@ services:
     networks:
       - dev-network
 
+  redis:
+    image: redis:alpine
+    container_name: laravel-dev-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - dev-network
+
 volumes:
   db_data:
+  redis_data:
 
 networks:
   dev-network:

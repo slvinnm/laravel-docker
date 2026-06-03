@@ -6,42 +6,48 @@ RUN npm ci
 COPY resources/ resources/
 RUN npm run build 
 
-
 # STAGE 2: PHP Engine
 FROM php:8.4-fpm-alpine
 
 # Install OS dependencies
-RUN apk add --no-cache libpng-dev libjpeg-turbo-dev freetype-dev zip libzip-dev \
+RUN apk add --no-cache \
+    $PHPIZE_DEPS \
+    linux-headers \
+    libpng-dev libjpeg-turbo-dev freetype-dev zip libzip-dev \
+    imagemagick imagemagick-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_mysql gd zip opcache
+    && docker-php-ext-install pdo pdo_mysql gd zip opcache bcmath \
+    && pecl install imagick redis \
+    && docker-php-ext-enable imagick redis \
+    && apk del $PHPIZE_DEPS imagemagick-dev linux-headers
 
 # Bring in Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www
 
 # Copy custom Opcache configuration
-COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY docker/php/opcache.prod.ini /usr/local/etc/php/conf.d/opcache.ini
 
-# OPTIMIZATION 1: Cache dependencies! Copy only composer files first.
+# OPTIMIZATION 1: Cache dependencies!
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-scripts --no-autoloader
 
-# Now copy the rest of the application code
+# Copy the rest of the application code
 COPY . .
 
 # Bring in compiled CSS/JS from Stage 1
 COPY --from=frontend /app/public/build ./public/build
 
-# Generate optimized autoloader now that the code is present
+# Generate optimized autoloader
 RUN composer dump-autoload --optimize
 
 # OPTIMIZATION 2: Fix permissions before switching users
 RUN chown -R www-data:www-data /var/www
 
-# OPTIMIZATION 3: Run as a non-root user for security
+# OPTIMIZATION 3: Run as a non-root user
 USER www-data
 
-# OPTIMIZATION 4: Cache Laravel configuration, events, and views
+# OPTIMIZATION 4: Cache Laravel configuration
 RUN php artisan config:cache \
     && php artisan event:cache \
     && php artisan route:cache \

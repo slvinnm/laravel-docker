@@ -1,6 +1,3 @@
-version: '3.8'
-
-# Reusable logging configuration to prevent disk space exhaustion
 x-logging: &default-logging
   driver: "json-file"
   options:
@@ -9,18 +6,18 @@ x-logging: &default-logging
 
 services:
   app:
-    image: your-registry/laravel-prod-app:latest # Replace with your actual image name
+    image: your-registry/laravel-prod-app:latest 
     container_name: laravel-prod-app
     restart: always
     logging: *default-logging
     volumes:
-      - storage_volume:/var/www/storage # ONLY uploads/logs persist
+      - storage_volume:/var/www/storage 
     depends_on:
       - db-prod
+      - redis-prod
     networks:
       - prod-network
 
-  # THE MISSING PIECE: Isolated Queue Worker
   app-queue:
     image: your-registry/laravel-prod-app:latest
     container_name: laravel-prod-queue
@@ -32,33 +29,33 @@ services:
     depends_on:
       - app
       - db-prod
+      - redis-prod
     networks:
       - prod-network
 
-  # THE MISSING PIECE: Isolated Cron/Scheduler Worker
   app-cron:
     image: your-registry/laravel-prod-app:latest
     container_name: laravel-prod-cron
     restart: always
     logging: *default-logging
-    # Alpine-compatible loop to run the scheduler every 60 seconds
     command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
     volumes:
       - storage_volume:/var/www/storage
     depends_on:
       - app
       - db-prod
+      - redis-prod
     networks:
       - prod-network
 
   webserver:
-    image: your-registry/laravel-prod-nginx:latest # Replace with your actual image name
+    image: your-registry/laravel-prod-nginx:latest 
     container_name: laravel-prod-nginx
     restart: always
     logging: *default-logging
     ports:
       - "80:80"
-      - "443:443" # Prepared for SSL
+      - "443:443" 
     depends_on:
       - app
     networks:
@@ -69,7 +66,6 @@ services:
     container_name: laravel-prod-db
     restart: always
     logging: *default-logging
-    # NO PORTS EXPOSED. Hidden from hackers.
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
       MYSQL_USER: ${DB_USERNAME}
@@ -80,9 +76,21 @@ services:
     networks:
       - prod-network
 
+  redis-prod:
+    image: redis:alpine
+    container_name: laravel-prod-redis
+    restart: always
+    logging: *default-logging
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - prod-network
+
 volumes:
   db_data:
   storage_volume:
+  redis_data:
 
 networks:
   prod-network:

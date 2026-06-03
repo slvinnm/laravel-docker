@@ -1,8 +1,7 @@
 FROM nginx:alpine
 
-# Copy Nginx configuration
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Copy PROD Nginx configuration
+COPY docker/nginx/default.prod.conf /etc/nginx/conf.d/default.conf
 
-# We only need the public directory for Nginx to serve static assets (images, css, js)
-# PHP files will be proxied to the PHP-FPM container
+# We only need the public directory for Nginx to serve static assets
 COPY ./public /var/www/public
