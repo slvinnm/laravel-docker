@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+vendor
+.env
+.env.example
+.phpunit.result.cache
+docker-compose.yml
+docker-compose.prod.yml
+npm-debug.log
+yarn-error.log
+tests/

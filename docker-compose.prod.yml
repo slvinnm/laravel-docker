@@ -1,0 +1,89 @@
+version: '3.8'
+
+# Reusable logging configuration to prevent disk space exhaustion
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    image: your-registry/laravel-prod-app:latest # Replace with your actual image name
+    container_name: laravel-prod-app
+    restart: always
+    logging: *default-logging
+    volumes:
+      - storage_volume:/var/www/storage # ONLY uploads/logs persist
+    depends_on:
+      - db-prod
+    networks:
+      - prod-network
+
+  # THE MISSING PIECE: Isolated Queue Worker
+  app-queue:
+    image: your-registry/laravel-prod-app:latest
+    container_name: laravel-prod-queue
+    restart: always
+    logging: *default-logging
+    command: php artisan queue:work --tries=3 --timeout=90
+    volumes:
+      - storage_volume:/var/www/storage
+    depends_on:
+      - app
+      - db-prod
+    networks:
+      - prod-network
+
+  # THE MISSING PIECE: Isolated Cron/Scheduler Worker
+  app-cron:
+    image: your-registry/laravel-prod-app:latest
+    container_name: laravel-prod-cron
+    restart: always
+    logging: *default-logging
+    # Alpine-compatible loop to run the scheduler every 60 seconds
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
+    volumes:
+      - storage_volume:/var/www/storage
+    depends_on:
+      - app
+      - db-prod
+    networks:
+      - prod-network
+
+  webserver:
+    image: your-registry/laravel-prod-nginx:latest # Replace with your actual image name
+    container_name: laravel-prod-nginx
+    restart: always
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443" # Prepared for SSL
+    depends_on:
+      - app
+    networks:
+      - prod-network
+
+  db-prod:
+    image: mysql:8.0
+    container_name: laravel-prod-db
+    restart: always
+    logging: *default-logging
+    # NO PORTS EXPOSED. Hidden from hackers.
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - prod-network
+
+volumes:
+  db_data:
+  storage_volume:
+
+networks:
+  prod-network:
+    driver: bridge
