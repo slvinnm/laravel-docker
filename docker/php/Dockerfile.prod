@@ -28,6 +28,9 @@ WORKDIR /var/www
 # Copy custom Opcache configuration
 COPY docker/php/opcache.prod.ini /usr/local/etc/php/conf.d/opcache.ini
 
+# Copy custom PHP configuration
+COPY docker/php/php.prod.ini /usr/local/etc/php/conf.d/php.prod.ini
+
 # OPTIMIZATION 1: Cache dependencies!
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-scripts --no-autoloader
